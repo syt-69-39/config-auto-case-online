@@ -1,0 +1,2 @@
+# old_group_name 通过 TF_VAR_old_group_name 注入，不从 terraform.tfvars 读取。
+# IAM 是全局服务，模板不接收地域参数。完整示例见 README.md。
