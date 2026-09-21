@@ -1,5 +1,5 @@
 # 第一步：只读查询现有 ECS 实例，回填 managed resource 的创建必填属性与现有标签。
-# data 块不会修改实例。
+# data 块不会修改实例，始终执行（用于判断指定资源当前是否已达目标态）。
 data "volcenginecc_ecs_instance" "target" {
   id = var.instance_id
 }
@@ -13,19 +13,24 @@ locals {
     }
   ]
 
-  # 已存在同名 Key 时不重复添加（幂等 add-or-keep）。
+  # 指定资源是否已含目标标签 Key（已达目标态）。
   has_target_key = contains([for t in local.existing_tags : t.key], var.tag_key)
 
+  # 纳管开关：仅当「尚未达到目标态（缺目标标签）」时才 for_each 出一个元素并纳管+import。
+  # 已达目标态时 manage 为空 → 不 import、无 resource 实例 → 本次执行 plan 为空、0 变更。
+  # 这样在规则未锁资源范围、多个不合规资源各触发一次执行时，对指定资源只做「一次」真正修正，
+  # 其余执行为瞬时空操作（幂等短路）。
+  manage = local.has_target_key ? {} : { target = var.instance_id }
+
   # 最终标签集合 = 现有标签 ∪ {tag_key}，仅新增不删除其它标签。
-  desired_tags = local.has_target_key ? local.existing_tags : concat(
-    local.existing_tags,
-    [{ key = var.tag_key, value = var.tag_value }],
-  )
+  desired_tags = concat(local.existing_tags, [{ key = var.tag_key, value = var.tag_value }])
 }
 
 # 第二步：将既有实例 Import 到当前独立 State，并声明目标标签集合。
-# 所有创建必填属性均取自刚读取的实例；不改动电源状态等其它配置。
+# for_each = local.manage：仅在需要修正时创建这个纳管实例；已达目标态则不创建（空操作）。
 resource "volcenginecc_ecs_instance" "target" {
+  for_each = local.manage
+
   image = {
     image_id = data.volcenginecc_ecs_instance.target.image.image_id
   }
