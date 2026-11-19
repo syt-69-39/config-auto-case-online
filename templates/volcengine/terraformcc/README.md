@@ -7,6 +7,7 @@
 - delete-unassociated-network-acl
 - split-iam-user-group
 - create-ecs-with-security-agent
+- set-vpc-tag-stable
 - create-eni-attach-instance
 - stop-ecs-instance
 
